@@ -1,0 +1,13 @@
+# Virtual environment
+venv/
+
+# Datasets
+Fingerprint_dataset/
+Iris_dataset/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Mac files
+.DS_Store
