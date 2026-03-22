@@ -3,152 +3,152 @@ import numpy as np
 from PIL import Image
 import os
 
+# ================= LOAD MATRIX =================
+
 def get_matrix(path):
     img = Image.open(path).convert("L")
     mat = np.array(img)
     h, w = mat.shape
-    return mat[h//2-8:h//2+8, w//2-8:w//2+8]
+    center = mat[h//2-8:h//2+8, w//2-8:w//2+8]
+    return center
 
 def get_first_iris_image(base_path):
-    for root, dirs, files in os.walk(base_path):
+    for root, _, files in os.walk(base_path):
         for file in files:
             if file.lower().endswith(('.jpg', '.png', '.jpeg', '.bmp', '.tif')):
                 return os.path.join(root, file)
     return None
 
+# ================= LOAD DATA =================
 
 fp_path = "Fingerprint_dataset/dataset/FVC2000/DB1_B/104_1.tif"
-fingerprint = get_matrix(fp_path)
-
-print("\n[STEP 1] Fingerprint 16x16 Matrix Extracted")
-
-
 iris_path = get_first_iris_image("Iris_dataset/CASIA-Iris-Thousand")
 
-if iris_path is None:
-    raise Exception("No iris image found!")
-
-print("[STEP 2] Iris Image Used:", iris_path)
-
+fp = get_matrix(fp_path)
 iris = get_matrix(iris_path)
 
-print("[STEP 3] Iris 16x16 Matrix Extracted")
+print("\n[STEP 1] Fingerprint Matrix Shape:", fp.shape)
+print("[STEP 2] Iris Matrix Shape:", iris.shape)
+
+print("\nFingerprint Sample:\n", fp[6:10, 6:10])
+print("\nIris Sample:\n", iris[6:10, 6:10])
+
+# ================= XOR MERGE =================
+
+merged = np.bitwise_xor(fp, iris)
+
+print("\n[STEP 3] XOR Merged Matrix Sample:\n", merged[6:10, 6:10])
 
 
-app_name = input("\n[STEP 4] Enter App Name: ").lower().strip()
+# ================= ROW HASH (INTEGRITY CHECK) =================
 
+print("\n[STEP 4] Generating Row Hashes (Integrity Layer):")
 
-hash_obj = hashlib.sha3_256(app_name.encode())   # 🔥 upgraded
-hash_hex = hash_obj.hexdigest()
-hash_bytes = hash_obj.digest()
+row_hashes = []
 
-print("\n[STEP 5] SHA3-256 Hash:", hash_hex)
+for i in range(16):
+    row_data = ",".join(map(str, merged[i]))
+    row_hash = hashlib.sha256(row_data.encode()).hexdigest()
+    row_hashes.append(row_hash)
 
+    if i < 5:  # print first 5 for display
+        print(f"Row {i} Hash:", row_hash[:16], "...")
 
-k = hash_bytes[0] % 64 or 16
-ascii_sum = sum(ord(c) for c in hash_hex[:k])
+# Combine all row hashes into one fingerprint
+combined_hash = hashlib.sha256("".join(row_hashes).encode()).hexdigest()
 
-row = ascii_sum % 16
-col = (ascii_sum >> 4) % 16
+print("\n[STEP 5] Combined Matrix Hash (Integrity Signature):")
+print(combined_hash)
 
-print("\n[STEP 6] Start Position → Row:", row, "Col:", col)
+# ================= INPUT =================
 
+app = input("\n[STEP 4] Enter App Name: ").lower().strip()
 
-steps = hash_bytes[1] % 40 + 20
+# ================= SHA-512 =================
+
+hash_hex = hashlib.sha512(app.encode()).hexdigest()
+hash_bin = bin(int(hash_hex, 16))[2:].zfill(512)
+
+print("\n[STEP 5] SHA-512 (first 64 bits):")
+print(hash_bin[:64])
+print("SHA-512 (last 64 bits):")
+print(hash_bin[-64:]) 
+
+# ================= START POSITION =================
+
+row = int(hash_bin[:4], 2)
+col = int(hash_bin[-4:], 2)
+
+print(f"\n[STEP 6] Start Position → Row: {row}, Col: {col}")
+
+# ================= NUMBER OF STEPS =================
+
+steps = int(hash_bin[4:10], 2) + 20
+
 print("[STEP 7] Number of Steps:", steps)
 
-# ================= QUANTUM-INSPIRED WALK =================
+# ================= PASSWORD LENGTH =================
 
-def walk(matrix):
-    r, c = row, col
-    sig = []
+length = int(hash_bin[10:16], 2) + 15
 
-    for i in range(steps):
+if length > 64:
+    length = 64
 
-        # 🔥 8-direction quantum-inspired movement
-        direction = hash_bytes[i % len(hash_bytes)] % 8
+print("[STEP 8] Password Length:", length)
 
-        # 🔥 variable step size (1–3)
-        step_size = (hash_bytes[(i+1) % len(hash_bytes)] % 3) + 1
+# ================= RANDOM WALK =================
 
-        if direction == 0:        # up
-            r = (r - step_size) % 16
-        elif direction == 1:      # down
-            r = (r + step_size) % 16
-        elif direction == 2:      # left
-            c = (c - step_size) % 16
-        elif direction == 3:      # right
-            c = (c + step_size) % 16
-        elif direction == 4:      # up-right
-            r = (r - step_size) % 16
-            c = (c + step_size) % 16
-        elif direction == 5:      # up-left
-            r = (r - step_size) % 16
-            c = (c - step_size) % 16
-        elif direction == 6:      # down-right
-            r = (r + step_size) % 16
-            c = (c + step_size) % 16
-        else:                     # down-left
-            r = (r + step_size) % 16
-            c = (c - step_size) % 16
+r, c = row, col
+indices = []
 
-        sig.append(int(matrix[r][c]))
+print("\n[STEP 9] Random Walk (first 10 steps):")
 
-    return sig
+for i in range(steps):
 
+    start = 16 + (i * 3)   # 3 bits per step
+    direction_bits = hash_bin[start:start+3]
 
-fp_sig = walk(fingerprint)
-ir_sig = walk(iris)
+    if len(direction_bits) < 3:
+        break
 
-print("\n[STEP 8] Fingerprint Signature (first 10):", fp_sig[:10])
-print("[STEP 9] Iris Signature (first 10):", ir_sig[:10])
+    direction = int(direction_bits, 2)
 
-combined = []
-for a, b in zip(fp_sig, ir_sig):
-    combined.append(a)
-    combined.append(b)
+    if direction == 0:          # UP
+        r = (r - 1) & 15
+    elif direction == 1:        # DOWN
+        r = (r + 1) & 15
+    elif direction == 2:        # LEFT
+        c = (c - 1) & 15
+    elif direction == 3:        # RIGHT
+        c = (c + 1) & 15
+    elif direction == 4:        # UP-LEFT
+        r = (r - 1) & 15
+        c = (c - 1) & 15
+    elif direction == 5:        # UP-RIGHT
+        r = (r - 1) & 15
+        c = (c + 1) & 15
+    elif direction == 6:        # DOWN-LEFT
+        r = (r + 1) & 15
+        c = (c - 1) & 15
+    else:                       # DOWN-RIGHT
+        r = (r + 1) & 15
+        c = (c + 1) & 15
 
-print("\n[STEP 10] Combined Signature Length:", len(combined))
+    index = r * 16 + c
+    indices.append(index)
 
+    if i < 10:
+        print(f"Step {i}: ({r},{c}) → index={index}")
 
+# ================= CHARACTER MAP =================
 
-length = (hash_bytes[8] % 8) + 8
-print("[STEP 11] Password Length:", length)
-
+chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 def map_char(v):
-    v = v % 62
-    if v < 26: return chr(97 + v)
-    elif v < 52: return chr(65 + v - 26)
-    else: return chr(48 + v - 52)
+    return chars[v % 62]
 
-base = "".join(map_char(v) for v in combined[:length])
+# ================= PASSWORD GENERATION =================
 
-print("\n[STEP 12] Base Password:", base)
+password = "".join(map_char(v) for v in indices[:length])
 
-
-positions = set()
-i = 2
-while len(positions) < 3:
-    positions.add(hash_bytes[i] % length)
-    i += 1
-
-pos_special, pos_digit, pos_upper = list(positions)
-
-print("\n[STEP 13] Positions Selected:")
-print("Special Char Position:", pos_special)
-print("Digit Position:", pos_digit)
-print("Uppercase Position:", pos_upper)
-
-
-password = list(base)
-
-special_chars = "!@#$%^&*"
-
-password[pos_special] = special_chars[hash_bytes[5] % len(special_chars)]
-password[pos_digit] = str(hash_bytes[6] % 10)
-password[pos_upper] = chr(65 + hash_bytes[7] % 26)
-
-final_password = "".join(password)
-
-print("\n[STEP 14] Final Password:", final_password)
+print("\n[STEP 11] Final Password:\n", password)
