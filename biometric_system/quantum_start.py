@@ -35,29 +35,33 @@ iris = get_matrix(iris_path)
 print("[STEP 3] Iris 16x16 Matrix Extracted")
 
 
-app_name = input("\n[STEP 4] Enter App Name: ").lower().strip()
+print("\n[STEP 4] Enter User Details")
 
+username = input("Enter Username: ").lower().strip()
+app_name = input("Enter App Name: ").lower().strip()
 
-hash_obj = hashlib.sha3_256(app_name.encode())   # 🔥 upgraded
+combined_input = username + "|" + app_name
+
+hash_obj = hashlib.sha3_256(combined_input.encode())
 hash_hex = hash_obj.hexdigest()
 hash_bytes = hash_obj.digest()
 
-print("\n[STEP 5] SHA3-256 Hash:", hash_hex)
+print("\n[STEP 5] SHA3-256 Hash:")
+print("Input Used:", combined_input)
+print("Hash:", hash_hex)
 
 
-k = hash_bytes[0] % 64 or 16
-ascii_sum = sum(ord(c) for c in hash_hex[:k])
+hash_bin = bin(int(hash_hex, 16))[2:].zfill(512)
 
-row = ascii_sum % 16
-col = (ascii_sum >> 4) % 16
+row = int(hash_bin[:4], 2)
+col = int(hash_bin[-4:], 2)
 
 print("\n[STEP 6] Start Position → Row:", row, "Col:", col)
 
 
-steps = hash_bytes[1] % 40 + 20
+steps = int((hash_bytes[1] / 255) * 40) + 20
 print("[STEP 7] Number of Steps:", steps)
 
-# ================= QUANTUM-INSPIRED WALK =================
 
 def walk(matrix):
     r, c = row, col
@@ -65,11 +69,9 @@ def walk(matrix):
 
     for i in range(steps):
 
-        # 🔥 8-direction quantum-inspired movement
-        direction = hash_bytes[i % len(hash_bytes)] % 8
+        direction = int((hash_bytes[i % len(hash_bytes)] / 255) * 7.9999)
 
-        # 🔥 variable step size (1–3)
-        step_size = (hash_bytes[(i+1) % len(hash_bytes)] % 3) + 1
+        step_size = int((hash_bytes[(i+1) % len(hash_bytes)] / 255) * 2.9999) + 1
 
         if direction == 0:        # up
             r = (r - step_size) % 16
@@ -111,26 +113,33 @@ for a, b in zip(fp_sig, ir_sig):
 print("\n[STEP 10] Combined Signature Length:", len(combined))
 
 
-
-length = (hash_bytes[8] % 8) + 8
+# Maps 0–255 → 16–64 without mod
+raw_len_byte = hash_bytes[8]
+length = 16 + int((raw_len_byte / 255) * (64 - 16))
 print("[STEP 11] Password Length:", length)
 
 
 def map_char(v):
-    v = v % 62
-    if v < 26: return chr(97 + v)
-    elif v < 52: return chr(65 + v - 26)
-    else: return chr(48 + v - 52)
+    # Maps 0–255 → alphanumeric only (a-z, A-Z, 0-9) = 62 chars, no mod
+    index = int((v / 255) * 61.9999)
+    if index < 26:
+        return chr(97 + index)       # a–z
+    elif index < 52:
+        return chr(65 + index - 26)  # A–Z
+    else:
+        return chr(48 + index - 52)  # 0–9
 
 base = "".join(map_char(v) for v in combined[:length])
 
 print("\n[STEP 12] Base Password:", base)
 
 
+# Select 3 unique positions using division instead of mod
 positions = set()
 i = 2
 while len(positions) < 3:
-    positions.add(hash_bytes[i] % length)
+    pos = int((hash_bytes[i] / 255) * (length - 0.0001))
+    positions.add(pos)
     i += 1
 
 pos_special, pos_digit, pos_upper = list(positions)
@@ -145,9 +154,15 @@ password = list(base)
 
 special_chars = "!@#$%^&*"
 
-password[pos_special] = special_chars[hash_bytes[5] % len(special_chars)]
-password[pos_digit] = str(hash_bytes[6] % 10)
-password[pos_upper] = chr(65 + hash_bytes[7] % 26)
+# Map to special char, digit, uppercase using division
+special_index = int((hash_bytes[5] / 255) * (len(special_chars) - 0.0001))
+password[pos_special] = special_chars[special_index]
+
+digit_val = int((hash_bytes[6] / 255) * 9.9999)
+password[pos_digit] = str(digit_val)
+
+upper_val = int((hash_bytes[7] / 255) * 25.9999)
+password[pos_upper] = chr(65 + upper_val)
 
 final_password = "".join(password)
 
