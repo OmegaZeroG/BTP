@@ -184,7 +184,7 @@ iris = get_matrix(iris_path)
 print("[STEP 3]  Iris 16×16 matrix extracted")
 
 print("\n[STEP 4]  Enter user details")
-username = input("Enter Username: ").lower().strip()
+username = input("Enter Username: ")
 app_name = input("Enter App Name: ").lower().strip()
 combined_input = username + "|" + app_name
 
