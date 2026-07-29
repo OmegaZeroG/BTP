@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+
 from auth import register, login
 
-app = FastAPI()
-
 from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,32 +15,62 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 class UserInput(BaseModel):
+
     username: str
     app: str
+
     pin: str = ""
 
-# -------- REGISTER --------
+    fingerprint: str
+    iris: str
+
+
+# ---------------------------------------------------
+# REGISTER
+# ---------------------------------------------------
+
 @app.post("/generate")
 def generate(data: UserInput):
-    password = register(data.username, data.app, data.pin)
+
+    password = register(
+        data.username,
+        data.app,
+        data.pin,
+        data.fingerprint,
+        data.iris
+    )
+
     return {
         "status": "success",
         "password": password
     }
 
-# -------- LOGIN --------
+
+# ---------------------------------------------------
+# LOGIN
+# ---------------------------------------------------
+
 @app.post("/login")
 def login_user(data: UserInput):
-    success, result = login(data.username, data.app, data.pin)
+
+    success, result = login(
+        data.username,
+        data.app,
+        data.pin,
+        data.fingerprint,
+        data.iris
+    )
 
     if success:
+
         return {
             "status": "success",
             "password": result
         }
-    else:
-        return {
-            "status": "error",
-            "message": result
-        }
+
+    return {
+        "status": "error",
+        "message": result
+    }

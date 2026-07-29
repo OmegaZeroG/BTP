@@ -1,54 +1,81 @@
-from quantum_engine import generate_password_with_signature, generate_from_signature
-from database import save_user, get_user
+from quantum_engine import (
+    generate_password_with_signature
+)
+
+from database import save_user, get_users
+
 import secrets
 
-import os
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# ---------------------------------------------------
+# REGISTER
+# ---------------------------------------------------
 
-# ✅ FIXED PATH (NO "..")
-FP_PATH = os.path.abspath(
-    os.path.join(BASE_DIR, "Fingerprint_dataset", "dataset", "FVC2000", "DB1_B", "104_1.tif")
-)
-
-# ✅ Already correct
-IRIS_PATH = os.path.abspath(
-    os.path.join(BASE_DIR, "CASIA-Iris-Thousand")
-)
-
-print("FP_PATH:", FP_PATH)
-print("FP exists:", os.path.exists(FP_PATH))
-
-print("IRIS_PATH:", IRIS_PATH)
-print("IRIS exists:", os.path.exists(IRIS_PATH))
-
-def register(username, app, user_secret):
+def register(
+    username,
+    app,
+    user_secret,
+    fp_path,
+    iris_path
+):
 
     has_secret = 1 if user_secret else 0
 
+    seed = secrets.token_bytes(16)
+
     signature, password = generate_password_with_signature(
-        username, app, user_secret,
-        FP_PATH, IRIS_PATH,
-        secrets.token_bytes(16)   # RANDOM → new password every time
+        username,
+        app,
+        user_secret,
+        fp_path,
+        iris_path,
+        seed
     )
 
-    save_user(username, app, signature, has_secret)
+    save_user(
+        username,
+        app,
+        signature,
+        seed,
+        has_secret
+    )
 
     return password
 
 
-def login(username, app, user_secret):
+# ---------------------------------------------------
+# LOGIN
+# ---------------------------------------------------
 
-    user = get_user(username, app)
+def login(
+    username,
+    app,
+    user_secret,
+    fp_path,
+    iris_path
+):
 
-    if not user:
+    users = get_users(username, app)
+
+    if not users:
         return False, "User not found"
 
-    signature, has_secret = user
+    for stored_signature, seed, has_secret in users:
 
-    if has_secret and not user_secret:
-        return False, "PIN required"
+        if has_secret and not user_secret:
+            continue
 
-    password = generate_from_signature(signature)
+        new_signature, password = generate_password_with_signature(
+            username,
+            app,
+            user_secret,
+            fp_path,
+            iris_path,
+            seed
+        )
 
-    return True, password
+        if new_signature == stored_signature:
+
+            return True, password
+
+    return False, "Biometric mismatch"
